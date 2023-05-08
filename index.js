@@ -5,7 +5,9 @@ const methodOverride=require("method-override")
 const mongoose = require('mongoose');
 const Campground = require('./models/campgrounds');
 const ejsMate=require('ejs-mate');
-
+const catchAsync=require("./utils/catchAsync")
+const ExpressError=require("./utils/expresError")
+const joi=require("joi")
 
 app.use(express.urlencoded({extended:true}))
 app.use(express.json());
@@ -32,29 +34,36 @@ app.get('/',(req,res)=>{
 })
 
 
-app.get("/campgrounds",async(req,res)=>{
+app.get("/campgrounds", catchAsync(async(req,res)=>{
   const campgrounds= await Campground.find({})
-    res.render("campgrounds/index",{campgrounds})
-})
+  res.render("campgrounds/index",{campgrounds})
+}))
 
 
 app.get("/campgrounds/new",(req,res)=>{
   res.render("campgrounds/new")
 })
 
-app.post("/campgrounds",async(req,res)=>{
+app.post("/campgrounds", catchAsync(async(req,res)=>{
+  // if(!req.body.campground){throw new ExpressError("Not Enough Campground Data",400)}
+  const campgroundSchema=joi.object({
+    campground:joi.object({
+      title:joi.string().required(),
+      price:joi.number().required().min(0),
+    }).required(),
 
+  })
   const campground= new Campground(req.body.campground)
   await campground.save();
   res.redirect(`/campgrounds/${campground._id}`)
-})
+}))
 
 
 
-app.get("/campgrounds/:id",async (req,res)=>{
+app.get("/campgrounds/:id",catchAsync(async (req,res)=>{
   const campground=await Campground.findById(req.params.id);
   res.render("campgrounds/show",{campground})
-})
+}))
 
 app.delete("/campgrounds/:id",async (req,res)=>{
   const {id}=req.params;
@@ -62,18 +71,32 @@ app.delete("/campgrounds/:id",async (req,res)=>{
   res.redirect("/campgrounds")
 })
 
-app.get("/campgrounds/:id/edit",async(req,res)=>{
-  const campground= await Campground.findById(req.params.id)
-  res.render("campgrounds/edit",{campground}) 
-})
+app.get("/campgrounds/:id/edit",catchAsync(async(req,res)=>{
 
-app.put("/campgrounds/:id",async(req,res)=>{
+  const campground= await Campground.findById(req.params.id)
+  
+    res.render("campgrounds/edit",{campground}) 
+}))
+
+app.put("/campgrounds/:id",catchAsync(async(req,res)=>{
   const prevCampground=await Campground.findByIdAndUpdate(req.params.id,req.body.campground);
   res.redirect(`/campgrounds/${prevCampground._id}`);
+}))
+
+
+
+
+
+app.all("*",(req,res,next)=>{
+  next(new ExpressError("Page Not Found",404))
 })
 
-
-
+app.use((err,req,res,next)=>{
+  const {statusCode=500}=err;
+  if(!err.message){err.message="Oh no something went wrong!!!"}
+  res.status(statusCode).render("error",{err});
+ 
+})
 
 app.listen(port, () => {
     console.log(`App is listening on port: ${port}`);
