@@ -17,6 +17,26 @@ app.set("view engine",'ejs');
 
 app.set('views',path.join(__dirname,'views'))
 
+
+const validateCampground=(req,res,next)=>{
+  const campgroundSchema=joi.object({
+    campground:joi.object({
+      title:joi.string().required(),
+      price:joi.number().required().min(0),
+      location:joi.string().required(),
+      description:joi.string().required()
+    }).required(),
+  })
+  const campground=new Campground(req.body.campground);
+  if(campground.error){
+    const msg=campground.error.details(map(el=>el.message.join(",")));
+    throw new ExpressError(campground.error.details,400);
+  }
+  else{
+    next();
+  }
+}
+
 const port = 8080
 
 main().catch(err => console.log(err));
@@ -44,16 +64,9 @@ app.get("/campgrounds/new",(req,res)=>{
   res.render("campgrounds/new")
 })
 
-app.post("/campgrounds", catchAsync(async(req,res)=>{
+app.post("/campgrounds", validateCampground,catchAsync(async(req,res)=>{
   // if(!req.body.campground){throw new ExpressError("Not Enough Campground Data",400)}
-  const campgroundSchema=joi.object({
-    campground:joi.object({
-      title:joi.string().required(),
-      price:joi.number().required().min(0),
-    }).required(),
-
-  })
-  const campground= new Campground(req.body.campground)
+  const campground=new Campground(req.body.campground);
   await campground.save();
   res.redirect(`/campgrounds/${campground._id}`)
 }))
