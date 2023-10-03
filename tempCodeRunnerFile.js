@@ -8,10 +8,6 @@ const ejsMate=require('ejs-mate');
 const catchAsync=require("./utils/catchAsync")
 const ExpressError=require("./utils/expresError")
 const joi=require("joi")
-const {campgroundSchema,ratingSchema}=require("./schema.js")
-
-const Review=require("./models/review");
-
 
 app.use(express.urlencoded({extended:true}))
 app.use(express.json());
@@ -22,25 +18,21 @@ app.set("view engine",'ejs');
 app.set('views',path.join(__dirname,'views'))
 
 
-
-
-
-const validateCampground = (req, res, next) => {
-  const { error } = campgroundSchema.validate(req.body.campground);
-  if (error) {
-    const msg = error.details.map(el => el.message).join(",");
-    throw new ExpressError(msg, 400);
-  } else {
-    next();
+const validateCampground=(req,res,next)=>{
+  const campgroundSchema=joi.object({
+    campground:joi.object({
+      title:joi.string().required(),
+      price:joi.number().required().min(0),
+      location:joi.string().required(),
+      description:joi.string().required()
+    }).required(),
+  })
+  const campground=new Campground(req.body.campground);
+  if(campground.error){
+    const msg=campground.error.details(map(el=>el.message.join(",")));
+    throw new ExpressError(campground.error.details,400);
   }
-}
-
-const validateReview=(req,res,next)=>{
-  const {error}=ratingSchema.validate(req.body.review);
-
-  if(error){
-    const msg=error.details.map(el=>el.message).join(",");
-  }else{
+  else{
     next();
   }
 }
@@ -64,8 +56,7 @@ app.get('/',(req,res)=>{
 
 app.get("/campgrounds", catchAsync(async(req,res)=>{
   const campgrounds= await Campground.find({})
- 
-  res.render("campgrounds/index",{campgrounds:campgrounds})
+  res.render("campgrounds/index",{campgrounds})
 }))
 
 
@@ -83,8 +74,7 @@ app.post("/campgrounds", validateCampground,catchAsync(async(req,res)=>{
 
 
 app.get("/campgrounds/:id",catchAsync(async (req,res)=>{
-  const campground=await Campground.findById(req.params.id).populate('reviews');
-  
+  const campground=await Campground.findById(req.params.id);
   res.render("campgrounds/show",{campground})
 }))
 
@@ -93,7 +83,6 @@ app.delete("/campgrounds/:id",async (req,res)=>{
   await Campground.findByIdAndDelete(id);
   res.redirect("/campgrounds")
 })
-
 
 app.get("/campgrounds/:id/edit",catchAsync(async(req,res)=>{
 
@@ -108,22 +97,7 @@ app.put("/campgrounds/:id",catchAsync(async(req,res)=>{
 }))
 
 
-app.post("/campgrounds/:id/review",catchAsync(async(req,res)=>{
-  const campground=await Campground.findById(req.params.id);
-  const review=new Review(req.body.review);
-  campground.reviews.push(review)
-  await review.save()
-  await campground.save()
-  res.redirect(`/campgrounds/${campground._id}`)
-}))
 
-
-app.delete("/campgrounds/:id/reviews/:reviewId",catchAsync(async (req,res)=>{
-  const {id,reviewId}=req.params;
-  await Campground.findByIdAndUpdate(id,{$pull:{reviews: reviewId}});
-  await Review.findByIdAndDelete(reviewId);
-  res.redirect(`/campgrounds/${id}`);
-}))
 
 
 app.all("*",(req,res,next)=>{
